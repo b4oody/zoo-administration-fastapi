@@ -3,4 +3,4 @@ __all__ = (
 
 )
 
-from auth.models import User
+from core.models import User

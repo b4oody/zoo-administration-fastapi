@@ -3,6 +3,8 @@ from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI
 
+from auth.views import router as auth_router
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -10,6 +12,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+app.include_router(auth_router)
 
 
 @app.get("/")
