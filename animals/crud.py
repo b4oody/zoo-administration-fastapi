@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, joinedload
 
-from animals.schemas import AnimalCreate
+from animals.schemas import AnimalCreate, AnimalUpdate, AnimalPartialUpdate
 from core.models import Animal
 
 
@@ -59,3 +59,20 @@ async def create_animal_full(animal: AnimalCreate, session: AsyncSession):
     db_animal_with_parent = result.scalar_one()
 
     return db_animal_with_parent
+
+
+async def update_animal(
+        session: AsyncSession,
+        animal: Animal,
+        animal_update: AnimalUpdate | AnimalPartialUpdate,
+        partial: bool = False,
+) -> Animal:
+    for name, value in animal_update.model_dump(exclude_unset=partial).items():
+        setattr(animal, name, value)
+    await session.commit()
+    return animal
+
+
+async def delete_animal(session: AsyncSession, animal: Animal) -> None:
+    await session.delete(animal)
+    await session.commit()
