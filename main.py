@@ -4,6 +4,7 @@ import uvicorn
 from fastapi import FastAPI
 
 from auth.views import router as auth_router
+from animals.views import router as animals_router
 
 
 @asynccontextmanager
@@ -13,6 +14,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 app.include_router(auth_router)
+app.include_router(animals_router)
 
 
 @app.get("/")
