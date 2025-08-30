@@ -44,4 +44,11 @@ class AnimalRead(BaseModel):
 
 
 class AnimalReadParentChildren(AnimalRead):
-    children: List[AnimalBase]
+    children: List[AnimalBase] = []
+
+
+class PaginatedAnimals(BaseModel):
+    total: int
+    page: int
+    size: int
+    animals: list[AnimalReadParentChildren] = []

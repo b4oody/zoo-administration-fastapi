@@ -1,7 +1,7 @@
 from typing import cast
 
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, joinedload
 
@@ -19,11 +19,20 @@ async def get_parent_by_id(session: AsyncSession, animal_id: int):
     return result.scalars().first()
 
 
-async def get_animals(session: AsyncSession):
-    result = await session.execute(
-        select(Animal).options(selectinload(Animal.children))
+async def get_animals(session: AsyncSession, page: int, size: int):
+    stmt = (
+        select(Animal)
+        .options(selectinload(Animal.parent))
+        .options(selectinload(Animal.children))
+        .offset((page - 1) * size)
+        .limit(size)
     )
-    return result.scalars().all()
+    result = await session.scalars(stmt)
+    return result.all()
+
+
+async def get_animals_count(session: AsyncSession) -> int:
+    return await session.scalar(select(func.count()).select_from(Animal))
 
 
 async def create_animal_full(animal: AnimalCreate, session: AsyncSession):

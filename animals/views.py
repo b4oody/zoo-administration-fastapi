@@ -1,24 +1,39 @@
-from typing import List
-
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
 from animals import crud
-from animals.crud import get_parent_by_id
+from animals.crud import get_parent_by_id, get_animals_count, get_animals
 from animals.dependencies import get_animal_by_id
-from animals.schemas import AnimalReadParentChildren, AnimalRead, AnimalCreate, AnimalUpdate, AnimalPartialUpdate
+from animals.schemas import (
+    AnimalReadParentChildren,
+    AnimalRead,
+    AnimalCreate,
+    AnimalUpdate,
+    AnimalPartialUpdate,
+    PaginatedAnimals
+)
 from core import db_helper
 from core.models import Animal
 
 router = APIRouter(prefix="/api/v1/animals", tags=["animals"])
 
 
-@router.get("/", response_model=List[AnimalRead])
-async def get_animals(
-        session: AsyncSession = Depends(db_helper.scoped_session_dependency)
+@router.get("/", response_model=PaginatedAnimals)
+async def list_animals(
+        page: int = Query(1, ge=1),
+        size: int = Query(10, ge=1, le=100),
+        session: AsyncSession = Depends(db_helper.scoped_session_dependency),
 ):
-    return await crud.get_animals(session)
+    total = await get_animals_count(session)
+    animals = await get_animals(session, page, size)
+
+    return PaginatedAnimals(
+        total=total,
+        page=page,
+        size=size,
+        animals=[AnimalReadParentChildren.model_validate(animal, from_attributes=True) for animal in animals],
+    )
 
 
 @router.get("/{animal_id}", response_model=AnimalReadParentChildren)
