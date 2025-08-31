@@ -11,7 +11,7 @@ from animals.schemas import (
     AnimalCreate,
     AnimalUpdate,
     AnimalPartialUpdate,
-    PaginatedAnimals
+    PaginatedAnimals, AnimalFilters
 )
 from core import db_helper
 from core.models import Animal
@@ -24,15 +24,24 @@ async def list_animals(
         page: int = Query(1, ge=1),
         size: int = Query(10, ge=1, le=100),
         session: AsyncSession = Depends(db_helper.scoped_session_dependency),
+        filters: AnimalFilters = Depends()
 ):
     total = await get_animals_count(session)
-    animals = await get_animals(session, page, size)
+    animals = await get_animals(
+        session=session,
+        page=page,
+        size=size,
+        filters=filters
+    )
 
     return PaginatedAnimals(
         total=total,
         page=page,
         size=size,
-        animals=[AnimalReadParentChildren.model_validate(animal, from_attributes=True) for animal in animals],
+        animals=[
+            AnimalReadParentChildren.model_validate(animal, from_attributes=True)
+            for animal in animals
+        ],
     )
 
 

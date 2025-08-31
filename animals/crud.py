@@ -3,9 +3,9 @@ from typing import cast
 from fastapi import HTTPException
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload, joinedload
+from sqlalchemy.orm import selectinload, joinedload, aliased
 
-from animals.schemas import AnimalCreate, AnimalUpdate, AnimalPartialUpdate
+from animals.schemas import AnimalCreate, AnimalUpdate, AnimalPartialUpdate, AnimalFilters
 from core.models import Animal
 
 
@@ -19,15 +19,50 @@ async def get_parent_by_id(session: AsyncSession, animal_id: int):
     return result.scalars().first()
 
 
-async def get_animals(session: AsyncSession, page: int, size: int):
-    stmt = (
+def apply_filters(query, filters, Animal):
+    conditions = []
+
+    if filters.name:
+        conditions.append(Animal.name.ilike(f"%{filters.name}%"))
+    if filters.sex:
+        conditions.append(Animal.sex == filters.sex)
+    if filters.min_age is not None:
+        conditions.append(Animal.age >= filters.min_age)
+    if filters.max_age is not None:
+        conditions.append(Animal.age <= filters.max_age)
+    if filters.species:
+        conditions.append(Animal.species == filters.species)
+
+    if filters.only_parents:
+        conditions.append(Animal.children.any())
+    if filters.only_children:
+        conditions.append(Animal.parent_id.is_not(None))
+    if filters.without_children:
+        conditions.append(~Animal.children.any())
+
+    if conditions:
+        query = query.where(*conditions)
+
+    if filters.min_children is not None or filters.max_children is not None:
+        Child = aliased(Animal)
+        query = query.join(Child, Animal.children).group_by(Animal.id)
+        if filters.min_children is not None:
+            query = query.having(func.count(Child.id) >= filters.min_children)
+        if filters.max_children is not None:
+            query = query.having(func.count(Child.id) <= filters.max_children)
+
+    return query
+
+
+async def get_animals(session: AsyncSession, page: int, size: int, filters: AnimalFilters):
+    query = (
         select(Animal)
         .options(selectinload(Animal.parent))
         .options(selectinload(Animal.children))
-        .offset((page - 1) * size)
-        .limit(size)
     )
-    result = await session.scalars(stmt)
+    query = apply_filters(query, filters, Animal)
+    query = query.offset((page - 1) * size).limit(size)
+    result = await session.scalars(query)
     return result.all()
 
 

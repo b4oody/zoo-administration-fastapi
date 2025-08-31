@@ -1,6 +1,7 @@
+import enum
 from typing import Optional, List
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class AnimalBase(BaseModel):
@@ -52,3 +53,21 @@ class PaginatedAnimals(BaseModel):
     page: int
     size: int
     animals: list[AnimalReadParentChildren] = []
+
+
+class Gender(str, enum.Enum):
+    MALE = "male"
+    FEMALE = "female"
+
+
+class AnimalFilters(BaseModel):
+    name: Optional[str] = None
+    sex: Optional[str] = None
+    min_age: Optional[int] = Field(None, ge=0, description="Мінімальний вік")
+    max_age: Optional[int] = Field(None, ge=0, description="Максимальний вік")
+    species: Optional[str] = None
+    only_children: bool = Field(False, description="Тільки ті, що мають дітей")
+    without_children: bool = Field(False, description="Тільки ті які не мають дітей")
+    only_parents: bool = Field(False, description="Тільки ті, що мають батьків")
+    min_children: Optional[int] = Field(None, ge=0, description="Мінімальний вік")
+    max_children: Optional[int] = Field(None, ge=0, description="Максимальний вік")
