@@ -1,6 +1,7 @@
+from datetime import datetime
 from typing import List, Optional
 
-from sqlalchemy import String, Integer, ForeignKey
+from sqlalchemy import String, Integer, ForeignKey, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.base import Base
@@ -10,6 +11,7 @@ class User(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     username: Mapped[str] = mapped_column(String(32), unique=True)
     hashed_password: Mapped[str] = mapped_column(String)
+    created_at = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
 
 
 class Animal(Base):
@@ -32,3 +34,4 @@ class Animal(Base):
         "Animal",
         back_populates="parent"
     )
+    created_at = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
