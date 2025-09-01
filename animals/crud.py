@@ -2,6 +2,7 @@ from typing import cast
 
 from fastapi import HTTPException
 from sqlalchemy import select, func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, joinedload, aliased
 
@@ -111,9 +112,21 @@ async def update_animal(
         animal_update: AnimalUpdate | AnimalPartialUpdate,
         partial: bool = False,
 ) -> Animal:
+    if animal_update.name is not None:
+        existing_animal_query = await session.execute(
+            select(Animal).where(Animal.name == animal_update.name, Animal.id != animal.id)
+        )
+        existing_animal = existing_animal_query.scalar_one_or_none()
+        if existing_animal:
+            raise HTTPException(status_code=400, detail="Animal with this name already exists.")
+
     for name, value in animal_update.model_dump(exclude_unset=partial).items():
         setattr(animal, name, value)
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+        raise HTTPException(status_code=400, detail="An integrity error occurred, likely a duplicate name.")
     return animal
 
 

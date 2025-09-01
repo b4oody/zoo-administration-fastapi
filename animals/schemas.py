@@ -1,7 +1,7 @@
 import enum
 from typing import Optional, List
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class AnimalBase(BaseModel):
@@ -13,10 +13,10 @@ class AnimalBase(BaseModel):
 
 
 class AnimalCreate(BaseModel):
-    name: str
-    species: str
-    age: int
-    sex: str
+    name: str = Field(max_length=32)
+    species: str = Field(max_length=32)
+    age: int = Field(ge=0, le=150)
+    sex: str = Field(pattern=r"^(male|female|other)$")
     parent_id: Optional[int] = None
 
 
@@ -25,10 +25,10 @@ class AnimalUpdate(AnimalCreate):
 
 
 class AnimalPartialUpdate(BaseModel):
-    name: str | None = None
-    species: str | None = None
-    age: int | None = None
-    sex: str | None = None
+    name: str | None = Field(None, max_length=32)
+    species: str | None = Field(None, max_length=32)
+    age: int | None = Field(None, ge=0, le=150)
+    sex: str | None = Field(None, pattern=r"^(male|female|other)$")
     parent_id: Optional[int] | None = None
 
 
@@ -61,13 +61,44 @@ class Gender(str, enum.Enum):
 
 
 class AnimalFilters(BaseModel):
-    name: Optional[str] = None
-    sex: Optional[str] = None
+    name: Optional[str] = Field(None, max_length=32)
+    sex: Optional[str] = Field(None, pattern=r"^(male|female|other)$")
     min_age: Optional[int] = Field(None, ge=0, description="Мінімальний вік")
-    max_age: Optional[int] = Field(None, ge=0, description="Максимальний вік")
+    max_age: Optional[int] = Field(None, ge=0, le=150, description="Максимальний вік")
     species: Optional[str] = None
     only_children: bool = Field(False, description="Тільки ті, що мають дітей")
     without_children: bool = Field(False, description="Тільки ті які не мають дітей")
     only_parents: bool = Field(False, description="Тільки ті, що мають батьків")
     min_children: Optional[int] = Field(None, ge=0, description="Мінімальний вік")
-    max_children: Optional[int] = Field(None, ge=0, description="Максимальний вік")
+    max_children: Optional[int] = Field(None, ge=0, le=100, description="Максимальний вік")
+
+    @model_validator(mode='before')
+    def check_min_max_values(cls, values):
+        min_age = values.get('min_age')
+        max_age = values.get('max_age')
+        min_children = values.get('min_children')
+        max_children = values.get('max_children')
+
+        if min_age is not None and max_age is not None and min_age > max_age:
+            raise ValueError('min_age не може бути більшим за max_age')
+        if min_children is not None and max_children is not None and min_children > max_children:
+            raise ValueError('min_children не може бути більшим за max_children')
+        return values
+
+    @model_validator(mode='before')
+    def check_boolean_conflicts(cls, values):
+        only_children = values.get('only_children')
+        without_children = values.get('without_children')
+
+        if only_children and without_children:
+            raise ValueError('Параметри "only_children" та "without_children" не можуть бути встановлені одночасно.')
+        return values
+
+    @model_validator(mode='before')
+    def check_parents_and_children_conflict(cls, values):
+        only_parents = values.get('only_parents')
+        without_children = values.get('without_children')
+
+        if only_parents and without_children:
+            raise ValueError('Параметри "only_parents" та "without_children" конфліктують.')
+        return values

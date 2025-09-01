@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Path
+from pydantic import ValidationError, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
@@ -27,12 +28,7 @@ async def list_animals(
         filters: AnimalFilters = Depends()
 ):
     total = await get_animals_count(session)
-    animals = await get_animals(
-        session=session,
-        page=page,
-        size=size,
-        filters=filters
-    )
+    animals = await get_animals(session=session, page=page, size=size, filters=filters)
 
     return PaginatedAnimals(
         total=total,
@@ -47,8 +43,8 @@ async def list_animals(
 
 @router.get("/{animal_id}", response_model=AnimalReadParentChildren)
 async def get_parent_view(
-        animal_id: int, session:
-        AsyncSession = Depends(db_helper.scoped_session_dependency)
+        animal_id: int = Path(ge=1),
+        session: AsyncSession = Depends(db_helper.scoped_session_dependency)
 ):
     animal = await get_parent_by_id(session, animal_id)
     if not animal:

@@ -9,7 +9,7 @@ from core import db_helper
 
 
 async def get_animal_by_id(
-        animal_id: Annotated[int, Path],
+        animal_id: Annotated[int, Path(ge=1)],
         session: AsyncSession = Depends(db_helper.scoped_session_dependency),
 ):
     animal = await crud.get_parent_by_id(session=session, animal_id=animal_id)

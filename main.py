@@ -1,10 +1,12 @@
 from contextlib import asynccontextmanager
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from pydantic import ValidationError
+from starlette.responses import JSONResponse
 
-from auth.views import router as auth_router
 from animals.views import router as animals_router
+from auth.views import router as auth_router
 
 
 @asynccontextmanager
@@ -13,6 +15,21 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+
+@app.exception_handler(ValidationError)
+async def validation_exception_handler(request: Request, exc: ValidationError):
+    errors = []
+    for error in exc.errors():
+        field_path = ".".join(map(str, error['loc']))
+        errors.append({"field": field_path, "message": error['msg']})
+
+    return JSONResponse(
+        status_code=422,
+        content={"error_type": "ValidationError", "errors": errors}
+    )
+
+
 app.include_router(auth_router)
 app.include_router(animals_router)
 
