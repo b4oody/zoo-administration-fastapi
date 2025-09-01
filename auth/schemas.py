@@ -1,12 +1,12 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class UserBase(BaseModel):
-    username: str
+    username: str = Field(min_length=3, max_length=32, pattern=r'^[A-Za-z0-9]+$')
 
 
 class UserCreate(UserBase):
-    password: str
+    password: str = Field(min_length=8, max_length=16)
 
 
 class UserRead(UserBase):
