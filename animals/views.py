@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Path
-from pydantic import ValidationError, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
@@ -16,11 +15,15 @@ from animals.schemas import (
 )
 from core import db_helper
 from core.models import Animal
-
+from auth.crud import get_current_user
 router = APIRouter(prefix="/api/v1/animals", tags=["animals"])
 
 
-@router.get("/", response_model=PaginatedAnimals)
+@router.get(
+    "/",
+    response_model=PaginatedAnimals,
+    dependencies=[Depends(get_current_user)],
+)
 async def list_animals(
         page: int = Query(1, ge=1),
         size: int = Query(10, ge=1, le=100),
@@ -41,7 +44,11 @@ async def list_animals(
     )
 
 
-@router.get("/{animal_id}", response_model=AnimalReadParentChildren)
+@router.get(
+    "/{animal_id}",
+    response_model=AnimalReadParentChildren,
+    dependencies=[Depends(get_current_user)],
+)
 async def get_parent_view(
         animal_id: int = Path(ge=1),
         session: AsyncSession = Depends(db_helper.scoped_session_dependency)
@@ -52,7 +59,11 @@ async def get_parent_view(
     return animal
 
 
-@router.post("/add_animal", response_model=AnimalRead)
+@router.post(
+    "/add_animal",
+    response_model=AnimalRead,
+    dependencies=[Depends(get_current_user)],
+)
 async def add_animal_with_children(
         animal: AnimalCreate,
         session: AsyncSession = Depends(db_helper.scoped_session_dependency)
@@ -63,7 +74,11 @@ async def add_animal_with_children(
     )
 
 
-@router.put("/{animal_id}", response_model=AnimalReadParentChildren)
+@router.put(
+    "/{animal_id}",
+    response_model=AnimalReadParentChildren,
+    dependencies=[Depends(get_current_user)],
+)
 async def update_animal(
         animal_update: AnimalUpdate,
         animal: Animal = Depends(get_animal_by_id),
@@ -76,7 +91,11 @@ async def update_animal(
     )
 
 
-@router.patch("/{animal_id}", response_model=AnimalReadParentChildren)
+@router.patch(
+    "/{animal_id}",
+    response_model=AnimalReadParentChildren,
+    dependencies=[Depends(get_current_user)],
+)
 async def update_animal_partial(
         animal_update: AnimalPartialUpdate,
         animal: Animal = Depends(get_animal_by_id),
@@ -90,7 +109,11 @@ async def update_animal_partial(
     )
 
 
-@router.delete("/{animal_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{animal_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(get_current_user)],
+)
 async def delete_animal(
         animal: Animal = Depends(get_animal_by_id),
         session: AsyncSession = Depends(db_helper.scoped_session_dependency),

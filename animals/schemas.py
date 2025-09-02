@@ -1,4 +1,5 @@
 import enum
+from datetime import datetime
 from typing import Optional, List
 
 from pydantic import BaseModel, Field, model_validator
@@ -10,6 +11,7 @@ class AnimalBase(BaseModel):
     species: str
     age: int
     sex: str
+    created_at: datetime
 
 
 class AnimalCreate(BaseModel):
@@ -18,13 +20,28 @@ class AnimalCreate(BaseModel):
     age: int = Field(ge=0, le=150)
     sex: str = Field(pattern=r"^(male|female|other)$")
     parent_id: Optional[int] = None
+    created_at: Optional[datetime] = None
+
+    @model_validator(mode="before")
+    def set_created_at(cls, values):
+        if not values.get("created_at"):
+            values["created_at"] = datetime.utcnow()
+        return values
+
+    @model_validator(mode="after")
+    def validate_created_at(cls, model):
+        if model.created_at > datetime.utcnow():
+            raise ValueError("created_at cannot be in the future")
+        return model
 
 
 class AnimalUpdate(AnimalCreate):
     pass
 
 
-class AnimalPartialUpdate(BaseModel):
+class AnimalPartialUpdate(
+    BaseModel,
+):
     name: str | None = Field(None, max_length=32)
     species: str | None = Field(None, max_length=32)
     age: int | None = Field(None, ge=0, le=150)
@@ -39,6 +56,7 @@ class AnimalRead(BaseModel):
     age: int
     sex: str
     parent: Optional["AnimalBase"] = None
+    created_at: datetime
 
     class Config:
         from_attributes = True
