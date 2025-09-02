@@ -14,10 +14,25 @@ class User(Base):
     created_at = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
 
 
+class Specie(Base):
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(32), unique=True)
+    animals: Mapped[List["Animal"]] = relationship(
+        back_populates="species"
+    )
+
+
 class Animal(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(32), unique=True)
-    species: Mapped[str] = mapped_column(String)
+    species_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("species.id"),
+        nullable=True
+    )
+    species: Mapped[Optional[Specie]] = relationship(
+        back_populates="animals"
+    )
+
     age: Mapped[int] = mapped_column(Integer)
     sex: Mapped[str] = mapped_column(String(32))
 
