@@ -6,15 +6,16 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, joinedload, aliased
 
-from animals.schemas import AnimalCreate, AnimalUpdate, AnimalPartialUpdate, AnimalFilters
-from core.models import Animal
+from animals.schemas.animals import AnimalCreate, AnimalUpdate, AnimalPartialUpdate, AnimalFilters
+from core.models import Animal, Specie
 
 
 async def get_parent_by_id(session: AsyncSession, animal_id: int):
     result = await session.execute(
         select(Animal).options(
+            joinedload(Animal.species),
             joinedload(Animal.parent),
-            selectinload(Animal.children)
+            selectinload(Animal.children).joinedload(Animal.species)
         ).where(Animal.id == animal_id)
     )
     return result.scalars().first()
@@ -60,6 +61,7 @@ async def get_animals(session: AsyncSession, page: int, size: int, filters: Anim
         select(Animal)
         .options(selectinload(Animal.parent))
         .options(selectinload(Animal.children))
+        .options(selectinload(Animal.species))
     )
     query = apply_filters(query, filters, Animal)
     query = query.offset((page - 1) * size).limit(size)
@@ -82,6 +84,16 @@ async def create_animal_full(animal: AnimalCreate, session: AsyncSession):
         if not parent:
             raise HTTPException(status_code=404, detail=f"Parent with id {animal.parent_id} not found")
 
+    if animal.species_id is not None:
+        statement = select(Specie).where(
+            cast("ColumnElement[bool]", Specie.id == animal.species_id)
+        )
+        result = await session.execute(statement)
+        specie = result.scalar_one_or_none()
+
+        if not specie:
+            raise HTTPException(status_code=404, detail=f"Specie with id {animal.species_id} not found")
+
     statement = select(Animal).where(
         cast("ColumnElement[bool]", Animal.name == animal.name)
     )
@@ -97,7 +109,11 @@ async def create_animal_full(animal: AnimalCreate, session: AsyncSession):
     await session.commit()
     await session.refresh(db_animal)
 
-    stmt = select(Animal).options(joinedload(Animal.parent)).where(
+    stmt = select(Animal).options(
+        joinedload(Animal.species),
+        joinedload(Animal.parent)
+
+    ).where(
         cast("ColumnElement[bool]", Animal.id == db_animal.id)
     )
     result = await session.execute(stmt)
@@ -124,6 +140,7 @@ async def update_animal(
         setattr(animal, name, value)
     try:
         await session.commit()
+        await session.refresh(animal)
     except IntegrityError:
         await session.rollback()
         raise HTTPException(status_code=400, detail="An integrity error occurred, likely a duplicate name.")
