@@ -1,26 +1,50 @@
-from typing import cast
+from typing import cast, TypeVar, Type, Optional
 
 from fastapi import HTTPException
-from sqlalchemy import select, func
+from sqlalchemy import select, func, ScalarResult
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload, joinedload, aliased
+from sqlalchemy.orm import selectinload, joinedload, aliased, DeclarativeBase
 
-from animals.schemas import AnimalCreate, AnimalUpdate, AnimalPartialUpdate, AnimalFilters
-from core.models import Animal
+from animals.schemas.animals import AnimalCreate, AnimalUpdate, AnimalPartialUpdate, AnimalFilters
+from core.models import Animal, Specie
+
+T = TypeVar("T", bound=DeclarativeBase)
+
+
+async def get_object_or_404(
+        session: AsyncSession,
+        model: Type[T],
+        obj_id: Optional[int],
+        field: str = "id",
+) -> Optional[T]:
+    if obj_id is None:
+        return None
+
+    statement = select(model).where(getattr(model, field) == obj_id)
+    result = await session.execute(statement)
+    obj = result.scalar_one_or_none()
+
+    if not obj:
+        raise HTTPException(status_code=404, detail=f"{model.__name__} with {field}={obj_id} not found")
+
+    return obj
 
 
 async def get_parent_by_id(session: AsyncSession, animal_id: int):
     result = await session.execute(
         select(Animal).options(
+            joinedload(Animal.species),
             joinedload(Animal.parent),
-            selectinload(Animal.children)
+            selectinload(Animal.children).joinedload(Animal.species)
         ).where(Animal.id == animal_id)
     )
     return result.scalars().first()
 
 
 def apply_filters(query, filters, Animal):
+    if not filters:
+        return query
     conditions = []
 
     if filters.name:
@@ -59,12 +83,14 @@ async def get_animals(session: AsyncSession, page: int, size: int, filters: Anim
     query = (
         select(Animal)
         .options(selectinload(Animal.parent))
-        .options(selectinload(Animal.children))
+        .options(selectinload(Animal.children)
+                 .selectinload(Animal.species))
+        .options(selectinload(Animal.species))
     )
     query = apply_filters(query, filters, Animal)
     query = query.offset((page - 1) * size).limit(size)
     result = await session.scalars(query)
-    return result.all()
+    return result.unique().all()
 
 
 async def get_animals_count(session: AsyncSession) -> int:
@@ -73,14 +99,10 @@ async def get_animals_count(session: AsyncSession) -> int:
 
 async def create_animal_full(animal: AnimalCreate, session: AsyncSession):
     if animal.parent_id is not None:
-        statement = select(Animal).where(
-            cast("ColumnElement[bool]", Animal.id == animal.parent_id)
-        )
-        result = await session.execute(statement)
-        parent = result.scalar_one_or_none()
+        await get_object_or_404(session, Animal, animal.parent_id)
 
-        if not parent:
-            raise HTTPException(status_code=404, detail=f"Parent with id {animal.parent_id} not found")
+    if animal.species_id is not None:
+        await get_object_or_404(session, Specie, animal.species_id)
 
     statement = select(Animal).where(
         cast("ColumnElement[bool]", Animal.name == animal.name)
@@ -97,7 +119,11 @@ async def create_animal_full(animal: AnimalCreate, session: AsyncSession):
     await session.commit()
     await session.refresh(db_animal)
 
-    stmt = select(Animal).options(joinedload(Animal.parent)).where(
+    stmt = select(Animal).options(
+        joinedload(Animal.species),
+        joinedload(Animal.parent)
+
+    ).where(
         cast("ColumnElement[bool]", Animal.id == db_animal.id)
     )
     result = await session.execute(stmt)
@@ -120,10 +146,17 @@ async def update_animal(
         if existing_animal:
             raise HTTPException(status_code=400, detail="Animal with this name already exists.")
 
+    if animal_update.parent_id is not None:
+        await get_object_or_404(session, Animal, animal_update.parent_id)
+
+    if animal_update.species_id is not None:
+        await get_object_or_404(session, Specie, animal_update.species_id)
+
     for name, value in animal_update.model_dump(exclude_unset=partial).items():
         setattr(animal, name, value)
     try:
         await session.commit()
+        await session.refresh(animal)
     except IntegrityError:
         await session.rollback()
         raise HTTPException(status_code=400, detail="An integrity error occurred, likely a duplicate name.")

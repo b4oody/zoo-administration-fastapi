@@ -5,7 +5,8 @@ from fastapi import FastAPI, Request
 from pydantic import ValidationError
 from starlette.responses import JSONResponse
 
-from animals.views import router as animals_router
+from animals.views.species import router as species_router
+from animals.views.animals import router as animals_router
 from auth.views import router as auth_router
 
 
@@ -32,6 +33,7 @@ async def validation_exception_handler(request: Request, exc: ValidationError):
 
 app.include_router(auth_router)
 app.include_router(animals_router)
+app.include_router(species_router)
 
 
 @app.get("/")

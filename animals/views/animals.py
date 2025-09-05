@@ -3,9 +3,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
 from animals import crud
-from animals.crud import get_parent_by_id, get_animals_count, get_animals
+from animals.crud import animals
+from animals.crud.animals import get_parent_by_id, get_animals_count, get_animals
 from animals.dependencies import get_animal_by_id
-from animals.schemas import (
+from animals.schemas.animals import (
     AnimalReadParentChildren,
     AnimalRead,
     AnimalCreate,
@@ -13,9 +14,9 @@ from animals.schemas import (
     AnimalPartialUpdate,
     PaginatedAnimals, AnimalFilters
 )
+from auth.crud import get_current_user
 from core import db_helper
 from core.models import Animal
-from auth.crud import get_current_user
 router = APIRouter(prefix="/api/v1/animals", tags=["animals"])
 
 
@@ -68,7 +69,7 @@ async def add_animal_with_children(
         animal: AnimalCreate,
         session: AsyncSession = Depends(db_helper.scoped_session_dependency)
 ):
-    return await crud.create_animal_full(
+    return await crud.animals.create_animal_full(
         session=session,
         animal=animal
     )
@@ -84,7 +85,7 @@ async def update_animal(
         animal: Animal = Depends(get_animal_by_id),
         session: AsyncSession = Depends(db_helper.scoped_session_dependency),
 ):
-    return await crud.update_animal(
+    return await crud.animals.update_animal(
         session=session,
         animal=animal,
         animal_update=animal_update,
@@ -101,7 +102,7 @@ async def update_animal_partial(
         animal: Animal = Depends(get_animal_by_id),
         session: AsyncSession = Depends(db_helper.scoped_session_dependency),
 ):
-    return await crud.update_animal(
+    return await crud.animals.update_animal(
         session=session,
         animal=animal,
         animal_update=animal_update,
@@ -118,4 +119,4 @@ async def delete_animal(
         animal: Animal = Depends(get_animal_by_id),
         session: AsyncSession = Depends(db_helper.scoped_session_dependency),
 ) -> None:
-    await crud.delete_animal(session=session, animal=animal)
+    await crud.animals.delete_animal(session=session, animal=animal)

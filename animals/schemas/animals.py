@@ -4,11 +4,13 @@ from typing import Optional, List
 
 from pydantic import BaseModel, Field, model_validator
 
+from animals.schemas.species import SpeciesRead
+
 
 class AnimalBase(BaseModel):
     id: int
     name: str
-    species: str
+    species: Optional[SpeciesRead] = None
     age: int
     sex: str
     created_at: datetime
@@ -16,10 +18,10 @@ class AnimalBase(BaseModel):
 
 class AnimalCreate(BaseModel):
     name: str = Field(max_length=32)
-    species: str = Field(max_length=32)
+    species_id: Optional[int] = Field(None, ge=1)
     age: int = Field(ge=0, le=150)
     sex: str = Field(pattern=r"^(male|female|other)$")
-    parent_id: Optional[int] = None
+    parent_id: Optional[int] = Field(None, ge=1)
     created_at: Optional[datetime] = None
 
     @model_validator(mode="before")
@@ -43,7 +45,7 @@ class AnimalPartialUpdate(
     BaseModel,
 ):
     name: str | None = Field(None, max_length=32)
-    species: str | None = Field(None, max_length=32)
+    species_id: Optional[int] = Field(None, ge=1)
     age: int | None = Field(None, ge=0, le=150)
     sex: str | None = Field(None, pattern=r"^(male|female|other)$")
     parent_id: Optional[int] | None = None
@@ -52,7 +54,7 @@ class AnimalPartialUpdate(
 class AnimalRead(BaseModel):
     id: int
     name: str
-    species: str
+    species: Optional["SpeciesRead"] = None
     age: int
     sex: str
     parent: Optional["AnimalBase"] = None
