@@ -1,13 +1,34 @@
-from typing import cast
+from typing import cast, TypeVar, Type, Optional
 
 from fastapi import HTTPException
-from sqlalchemy import select, func
+from sqlalchemy import select, func, ScalarResult
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload, joinedload, aliased
+from sqlalchemy.orm import selectinload, joinedload, aliased, DeclarativeBase
 
 from animals.schemas.animals import AnimalCreate, AnimalUpdate, AnimalPartialUpdate, AnimalFilters
 from core.models import Animal, Specie
+
+T = TypeVar("T", bound=DeclarativeBase)
+
+
+async def get_object_or_404(
+        session: AsyncSession,
+        model: Type[T],
+        obj_id: Optional[int],
+        field: str = "id",
+) -> Optional[T]:
+    if obj_id is None:
+        return None
+
+    statement = select(model).where(getattr(model, field) == obj_id)
+    result = await session.execute(statement)
+    obj = result.scalar_one_or_none()
+
+    if not obj:
+        raise HTTPException(status_code=404, detail=f"{model.__name__} with {field}={obj_id} not found")
+
+    return obj
 
 
 async def get_parent_by_id(session: AsyncSession, animal_id: int):
@@ -78,24 +99,10 @@ async def get_animals_count(session: AsyncSession) -> int:
 
 async def create_animal_full(animal: AnimalCreate, session: AsyncSession):
     if animal.parent_id is not None:
-        statement = select(Animal).where(
-            cast("ColumnElement[bool]", Animal.id == animal.parent_id)
-        )
-        result = await session.execute(statement)
-        parent = result.scalar_one_or_none()
-
-        if not parent:
-            raise HTTPException(status_code=404, detail=f"Parent with id {animal.parent_id} not found")
+        await get_object_or_404(session, Animal, animal.parent_id)
 
     if animal.species_id is not None:
-        statement = select(Specie).where(
-            cast("ColumnElement[bool]", Specie.id == animal.species_id)
-        )
-        result = await session.execute(statement)
-        specie = result.scalar_one_or_none()
-
-        if not specie:
-            raise HTTPException(status_code=404, detail=f"Specie with id {animal.species_id} not found")
+        await get_object_or_404(session, Specie, animal.species_id)
 
     statement = select(Animal).where(
         cast("ColumnElement[bool]", Animal.name == animal.name)
@@ -138,6 +145,12 @@ async def update_animal(
         existing_animal = existing_animal_query.scalar_one_or_none()
         if existing_animal:
             raise HTTPException(status_code=400, detail="Animal with this name already exists.")
+
+    if animal_update.parent_id is not None:
+        await get_object_or_404(session, Animal, animal_update.parent_id)
+
+    if animal_update.species_id is not None:
+        await get_object_or_404(session, Specie, animal_update.species_id)
 
     for name, value in animal_update.model_dump(exclude_unset=partial).items():
         setattr(animal, name, value)
