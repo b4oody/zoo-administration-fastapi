@@ -10,7 +10,7 @@ from animals.schemas.species import SpeciesRead
 class AnimalBase(BaseModel):
     id: int
     name: str
-    species: Optional[SpeciesRead]
+    species: Optional[SpeciesRead] = None
     age: int
     sex: str
     created_at: datetime

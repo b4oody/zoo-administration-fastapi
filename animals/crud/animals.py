@@ -22,6 +22,8 @@ async def get_parent_by_id(session: AsyncSession, animal_id: int):
 
 
 def apply_filters(query, filters, Animal):
+    if not filters:
+        return query
     conditions = []
 
     if filters.name:
@@ -60,13 +62,14 @@ async def get_animals(session: AsyncSession, page: int, size: int, filters: Anim
     query = (
         select(Animal)
         .options(selectinload(Animal.parent))
-        .options(selectinload(Animal.children))
+        .options(selectinload(Animal.children)
+                 .selectinload(Animal.species))
         .options(selectinload(Animal.species))
     )
     query = apply_filters(query, filters, Animal)
     query = query.offset((page - 1) * size).limit(size)
     result = await session.scalars(query)
-    return result.all()
+    return result.unique().all()
 
 
 async def get_animals_count(session: AsyncSession) -> int:
